@@ -71,24 +71,45 @@ public class ChatClient {
     }
 
     private class SendThread extends Thread {
-
+        private BlockingQueue<String> messageQueue        = new ArrayBlockingQueue<String>(Constants.MESSAGE_QUEUE_CAPACITY);
+        private List<Message>         conversationHistory = new ArrayList<Message>();
         @Override
         public void run() {
 
             PrintWriter printWriter = Utilities.getWriter(socket);
             if (printWriter != null) {
                 try {
-                    Log.d(Constants.TAG, "Sending messages to " + socket.getInetAddress() + ":" + socket.getLocalPort());
+                    Log.v(Constants.TAG, "Sending messages to " + socket.getInetAddress() + ":" + socket.getLocalPort());
 
                     // TODO: exercise 6
                     // iterate while the thread is not yet interrupted
-                    // - get the content (a line) from the messageQueue, if available, using the take() method
-                    // - if the content is not null
-                    //   - send the content to the PrintWriter, as a line
-                    //   - create a Message instance, with the content received and Constants.MESSAGE_TYPE_SENT as message type
-                    //   - add the message to the conversationHistory
-                    //   - if the ChatConversationFragment is visible (query the FragmentManager for the Constants.FRAGMENT_TAG tag)
+                    while(!Thread.currentThread().isInterrupted()) {
+                        // - get the content (a line) from the messageQueue, if available, using the take() method
+                        String content = messageQueue.take();
+                        Log.d(Constants.TAG, "Sending the message " + content);
+                        // - if the content is not null
+                        if(content != null){
+                            //   - send the content to the PrintWriter, as a line
+                            printWriter.println(content);
+                            printWriter.flush();
+                            //   - create a Message instance, with the content received and Constants.MESSAGE_TYPE_SENT as message type
+                            Message message = new Message(content, Constants.MESSAGE_TYPE_SENT);
+                            //   - add the message to the conversationHistory
+                            conversationHistory.add(message);
+                            //   - if the ChatConversationFragment is visible (query the FragmentManager for the Constants.FRAGMENT_TAG tag)
+                            if (context != null) {
+                                ChatActivity chatActivity = (ChatActivity) context;
+                                FragmentManager fragmentManager = chatActivity.getFragmentManager();
+                                Fragment fragment = fragmentManager.findFragmentByTag(Constants.FRAGMENT_TAG);
+                                if (fragment instanceof ChatConversationFragment && fragment.isVisible()) {
+                                    ChatConversationFragment chatConversationFragment = (ChatConversationFragment) fragment;
+                                    chatConversationFragment.appendMessage(message);
+                                }
+                            }
+                        }
 
+
+                    }
                 } catch (Exception exception) {
                     Log.e(Constants.TAG, "An exception has occurred: " + exception.getMessage());
                     if (Constants.DEBUG) {
@@ -115,17 +136,33 @@ public class ChatClient {
             BufferedReader bufferedReader = Utilities.getReader(socket);
             if (bufferedReader != null) {
                 try {
-                    Log.d(Constants.TAG, "Reading messages from " + socket.getInetAddress() + ":" + socket.getLocalPort());
+                    Log.v(Constants.TAG, "Reading messages from " + socket.getInetAddress() + ":" + socket.getLocalPort());
 
                     // TODO: exercise 7
                     // iterate while the thread is not yet interrupted
-                    // - receive the content (a line) from the bufferedReader, if available
-                    // - if the content is not null
-                    //   - create a Message instance, with the content received and Constants.MESSAGE_TYPE_RECEIVED as message type
-                    //   - add the message to the conversationHistory
-                    //   - if the ChatConversationFragment is visible (query the FragmentManager for the Constants.FRAGMENT_TAG tag)
-                    //   append the message to the graphic user interface
-
+                    while(!Thread.currentThread().isInterrupted()) {
+                        // - receive the content (a line) from the bufferedReader, if available
+                        String content = bufferedReader.readLine();
+                        // - if the content is not null
+                        if(content != null) {
+                            Log.d(Constants.TAG, "Received the message " + content);
+                            //   - create a Message instance, with the content received and Constants.MESSAGE_TYPE_RECEIVED as message type
+                           Message message = new Message(content, Constants.MESSAGE_TYPE_RECEIVED);
+                            //   - add the message to the conversationHistory
+                            conversationHistory.add(message);
+                            //   - if the ChatConversationFragment is visible (query the FragmentManager for the Constants.FRAGMENT_TAG tag)
+                            //   append the message to the graphic user interface
+                            if (context != null) {
+                                ChatActivity chatActivity = (ChatActivity) context;
+                                FragmentManager fragmentManager = chatActivity.getFragmentManager();
+                                Fragment fragment = fragmentManager.findFragmentByTag(Constants.FRAGMENT_TAG);
+                                if (fragment instanceof ChatConversationFragment && fragment.isVisible()) {
+                                    ChatConversationFragment chatConversationFragment = (ChatConversationFragment) fragment;
+                                    chatConversationFragment.appendMessage(message);
+                                }
+                            }
+                        }
+                    }
                 } catch (Exception exception) {
                     Log.e(Constants.TAG, "An exception has occurred: " + exception.getMessage());
                     if (Constants.DEBUG) {
